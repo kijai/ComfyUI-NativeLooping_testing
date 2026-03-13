@@ -190,38 +190,6 @@ class _IntOperations(io.ComfyNode):
         result = cls.OPS[operation](a, b)
         return io.NodeOutput(int(result), bool(result))
 
-
-class _ImageBatchStateUnpack(io.ComfyNode):
-    """Internal helper: unpacks the loop_state dict produced by ImageBatchLoopOpen."""
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="_ImageBatchStateUnpack",
-            display_name="Image Batch State Unpack",
-            category="looping/loops",
-            #is_dev_only=True,
-            inputs=[io.AnyType.Input("loop_state")],
-            outputs=[
-                io.Image.Output("images"),
-                io.Int.Output("next_offset"),
-                io.Boolean.Output("has_more"),
-                io.Accumulation.Output("accumulation"),
-                io.Int.Output("batch_size"),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, loop_state) -> io.NodeOutput:
-        print(f"[_ImageBatchStateUnpack] next_offset={loop_state['next_offset']}, has_more={loop_state['has_more']}, accum_len={len(loop_state['accum']['accum']) if isinstance(loop_state['accum'], dict) else None}, images={loop_state['images'].shape}")
-        return io.NodeOutput(
-            loop_state["images"],
-            loop_state["next_offset"],
-            loop_state["has_more"],
-            loop_state["accum"],
-            loop_state["batch_size"],
-        )
-
-
 class _AccumulationToImageBatch(io.ComfyNode):
     """Internal helper: concatenates an ACCUMULATION of IMAGE/MASK tensors or LATENT dicts into a single batch."""
     @classmethod
@@ -444,7 +412,6 @@ class LoopExtension(ComfyExtension):
             _AccumulateNode,
             _IntOperations,
             _AccumulationToImageBatch,
-            _ImageBatchStateUnpack,
             _ImageAccumStateUnpack,
             _ImageAccumStatePack,
         ]
