@@ -234,8 +234,6 @@ class TensorForLoopOpen(io.ComfyNode):
                 io.Int.Input("count", default=4, min=1, tooltip="Number of loop iterations."),
                 io.MatchType.Input("initial_value", template=cls.MATCHTYPE, optional=True,
                                    tooltip="Optional value to use as `previous_value` on the first iteration."),
-                io.AnyType.Input("initial_value0", "loop_state_in", optional=True, advanced=True,
-                                 tooltip="Internal loop-back state — wired automatically by TensorForLoopClose."),
             ],
             outputs=[
                 io.FlowControl.Output("flow_control"),
