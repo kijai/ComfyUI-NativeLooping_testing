@@ -300,25 +300,17 @@ class TensorForLoopClose(io.ComfyNode):
         sub  = graph.node("_IntOperations", operation="subtract", a=unpack.out(0), b=1)
         cond = graph.node("_IntOperations", a=sub.out(0), b=0, operation=">")
 
+        accum_out = unpack.out(1)
         if accumulate:
-            # _AccumulateNode appends a Python reference — no tensor copy, O(1) per iteration
-            accum_node = graph.node("_AccumulateNode", to_add=processed, accumulation=unpack.out(1))
-            pack = graph.node("_ImageAccumStatePack",
-                remaining=sub.out(0),
-                accum=accum_node.out(0),
-                previous_value=processed,
-                count=unpack.out(4),
-                open_node_id=unpack.out(5),
-            )
-        else:
-            # No accumulation — just pass the image through as 'previous_value'
-            pack = graph.node("_ImageAccumStatePack",
-                remaining=sub.out(0),
-                accum=unpack.out(1),
-                previous_value=processed,
-                count=unpack.out(4),
-                open_node_id=unpack.out(5),
-            )
+            accum_out = graph.node("_AccumulateNode", to_add=processed, accumulation=accum_out).out(0)
+
+        pack = graph.node("_ImageAccumStatePack",
+            remaining=sub.out(0),
+            accum=accum_out,
+            previous_value=processed,
+            count=unpack.out(4),
+            open_node_id=unpack.out(5),
+        )
 
         while_close = graph.node(
             "WhileLoopClose",
@@ -327,15 +319,11 @@ class TensorForLoopClose(io.ComfyNode):
             initial_value0=pack.out(0),
         )
 
+        final_unpack = graph.node("_ImageAccumStateUnpack", loop_state=while_close.out(0))
         if accumulate:
-            # Concatenate all collected images into one batch tensor
-            final_unpack = graph.node("_ImageAccumStateUnpack", loop_state=while_close.out(0))
-            final_batch = graph.node("_AccumulationToImageBatch", accumulation=final_unpack.out(1))
-            result = final_batch.out(0)
+            result = graph.node("_AccumulationToImageBatch", accumulation=final_unpack.out(1)).out(0)
         else:
-            # Just return the last iteration's image
-            final_unpack = graph.node("_ImageAccumStateUnpack", loop_state=while_close.out(0))
-            result = final_unpack.out(2)  # out(2) = previous_value
+            result = final_unpack.out(2)  # previous_value
 
         return io.NodeOutput(result, expand=graph.finalize())
 
