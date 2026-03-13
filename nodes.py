@@ -213,13 +213,12 @@ class _AccumulationToImageBatch(io.ComfyNode):
         else:
             return io.NodeOutput(torch.cat(items, dim=0))
 
+
 class TensorForLoopOpen(io.ComfyNode):
     """
     Opens a loop that runs N times and collects outputs.
-    Wire:
-      - flow_control → TensorForLoopClose
-      - Use `previous_value` (last iteration's result, or initial_value on first pass) as input to your generation.
-      - Connect your generated output → TensorForLoopClose.processed
+    Wire flow_control → TensorForLoopClose, use `previous_value` as input to your
+    generation, and connect the generated output → TensorForLoopClose.processed.
     Supports IMAGE, MASK, and LATENT types.
     """
     MATCHTYPE = io.MatchType.Template("data", allowed_types=[io.Image, io.Mask, io.Latent])
@@ -237,7 +236,6 @@ class TensorForLoopOpen(io.ComfyNode):
             ],
             outputs=[
                 io.FlowControl.Output("flow_control"),
-                io.AnyType.Output("loop_state", tooltip="Internal — connect to TensorForLoopClose."),
                 io.MatchType.Output(cls.MATCHTYPE, id="previous_value",
                                     tooltip="The value from the previous_value iteration (or initial_value on first pass)."),
                 io.Int.Output("accumulated_count", tooltip="Number of items collected so far (0 on first iteration)."),
@@ -260,7 +258,7 @@ class TensorForLoopOpen(io.ComfyNode):
         accumulated_count = _accum_count(accum)
         current_iteration = count - remaining + 1
         loop_state = {"remaining": remaining, "accum": accum, "previous_value": previous_value, "count": count, "open_node_id": open_node_id}
-        return io.NodeOutput("stub", loop_state, previous_value, accumulated_count, current_iteration)
+        return io.NodeOutput(loop_state, previous_value, accumulated_count, current_iteration)
 
 
 class TensorForLoopClose(io.ComfyNode):
@@ -296,8 +294,8 @@ class TensorForLoopClose(io.ComfyNode):
     def execute(cls, flow_control, processed, accumulate=True) -> io.NodeOutput:
         graph = GraphBuilder()
         open_id = flow_control[0]
-        # slot 1 of TensorForLoopOpen = loop_state dict {remaining, accum, previous_value}
-        unpack = graph.node("_ImageAccumStateUnpack", loop_state=[open_id, 1])
+        # slot 0 of TensorForLoopOpen = loop_state dict (packed into flow_control slot)
+        unpack = graph.node("_ImageAccumStateUnpack", loop_state=[open_id, 0])
         # unpack outputs: 0=remaining, 1=accum (Accumulation list), 2=previous_value, 3=accumulated_count, 4=count
         sub  = graph.node("_IntOperations", operation="subtract", a=unpack.out(0), b=1)
         cond = graph.node("_IntOperations", a=sub.out(0), b=0, operation=">")
