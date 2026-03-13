@@ -1,0 +1,8 @@
+__pycache__
+/venv
+*.code-workspace
+.history
+.vscode
+*.ckpt
+*.pth
+.claude
