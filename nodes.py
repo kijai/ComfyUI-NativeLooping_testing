@@ -214,6 +214,28 @@ class _AccumulationToImageBatch(io.ComfyNode):
             return io.NodeOutput(torch.cat(items, dim=0))
 
 
+class _ConditionalSelect(io.ComfyNode):
+    """Internal helper: returns value_if_true when condition is True, value_if_false otherwise."""
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="_ConditionalSelect",
+            display_name="Conditional Select",
+            category="looping/logic",
+            is_dev_only=True,
+            inputs=[
+                io.Boolean.Input("condition"),
+                io.AnyType.Input("value_if_true", optional=True),
+                io.AnyType.Input("value_if_false", optional=True),
+            ],
+            outputs=[io.AnyType.Output("result")],
+        )
+
+    @classmethod
+    def execute(cls, condition, value_if_true=None, value_if_false=None) -> io.NodeOutput:
+        return io.NodeOutput(value_if_true if condition else value_if_false)
+
+
 class TensorForLoopOpen(io.ComfyNode):
     """
     Opens a loop that runs N times and collects outputs.
@@ -230,7 +252,7 @@ class TensorForLoopOpen(io.ComfyNode):
             display_name="Tensor For Loop Open",
             category="looping/accumulation",
             inputs=[
-                io.Int.Input("count", default=4, min=1, tooltip="Number of loop iterations."),
+                io.Int.Input("count", default=4, min=0, tooltip="Number of loop iterations. Set to 0 to skip looping and pass through initial_value."),
                 io.MatchType.Input("initial_value", template=cls.MATCHTYPE, optional=True,
                                    tooltip="Optional value to use as `previous_value` on the first iteration."),
             ],
@@ -325,6 +347,15 @@ class TensorForLoopClose(io.ComfyNode):
         else:
             result = final_unpack.out(2)  # previous_value
 
+        # When count==0, skip the loop result and return initial_value directly.
+        # unpack.out(2) is previous_value from the open node's first pass, which equals initial_value.
+        count_is_zero = graph.node("_IntOperations", a=unpack.out(4), b=0, operation="==")
+        result = graph.node("_ConditionalSelect",
+            condition=count_is_zero.out(1),
+            value_if_true=unpack.out(2),
+            value_if_false=result,
+        ).out(0)
+
         return io.NodeOutput(result, expand=graph.finalize())
 
 
@@ -396,6 +427,7 @@ class LoopExtension(ComfyExtension):
             _AccumulateNode,
             _IntOperations,
             _AccumulationToImageBatch,
+            _ConditionalSelect,
             _ImageAccumStateUnpack,
             _ImageAccumStatePack,
         ]
